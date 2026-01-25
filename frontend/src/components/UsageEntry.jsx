@@ -1,10 +1,23 @@
 import { useState } from 'react';
 import { usageAPI } from '../services/api';
 import { format } from 'date-fns';
+import { formatMinutesToHours } from '../utils/timeFormatter';
+
+const APP_OPTIONS = [
+  'Instagram',
+  'Facebook',
+  'Twitter (X)',
+  'TikTok',
+  'YouTube',
+  'Snapchat',
+  'WhatsApp',
+  'Other'
+];
 
 export const UsageEntry = ({ onSuccess }) => {
   const [formData, setFormData] = useState({
     appName: '',
+    customAppName: '',
     minutesSpent: '',
     date: format(new Date(), 'yyyy-MM-dd')
   });
@@ -13,9 +26,12 @@ export const UsageEntry = ({ onSuccess }) => {
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
+    const { name, value } = e.target;
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
+      [name]: value,
+      // Reset customAppName if appName changes from "Other"
+      ...(name === 'appName' && value !== 'Other' ? { customAppName: '' } : {})
     });
     setError('');
     setSuccess('');
@@ -28,8 +44,19 @@ export const UsageEntry = ({ onSuccess }) => {
     setLoading(true);
 
     try {
+      // Use customAppName if "Other" is selected, otherwise use appName
+      const finalAppName = formData.appName === 'Other' 
+        ? formData.customAppName.trim() 
+        : formData.appName.trim();
+
+      if (!finalAppName) {
+        setError('Please enter an app name');
+        setLoading(false);
+        return;
+      }
+
       await usageAPI.create({
-        appName: formData.appName.trim(),
+        appName: finalAppName,
         minutesSpent: parseFloat(formData.minutesSpent),
         date: formData.date
       });
@@ -37,6 +64,7 @@ export const UsageEntry = ({ onSuccess }) => {
       setSuccess('Usage entry added successfully!');
       setFormData({
         appName: '',
+        customAppName: '',
         minutesSpent: '',
         date: format(new Date(), 'yyyy-MM-dd')
       });
@@ -52,6 +80,10 @@ export const UsageEntry = ({ onSuccess }) => {
       setLoading(false);
     }
   };
+
+  // Calculate preview time
+  const previewMinutes = parseFloat(formData.minutesSpent) || 0;
+  const timePreview = previewMinutes > 0 ? formatMinutesToHours(previewMinutes) : null;
 
   return (
     <div className="card">
@@ -75,17 +107,33 @@ export const UsageEntry = ({ onSuccess }) => {
             <label htmlFor="appName" className="block text-sm font-medium mb-2">
               App Name
             </label>
-            <input
-              type="text"
+            <select
               id="appName"
               name="appName"
               value={formData.appName}
               onChange={handleChange}
               className="input-field"
-              placeholder="e.g., Instagram, TikTok"
               required
-              maxLength={100}
-            />
+            >
+              <option value="">Select an app</option>
+              {APP_OPTIONS.map((app) => (
+                <option key={app} value={app}>
+                  {app}
+                </option>
+              ))}
+            </select>
+            {formData.appName === 'Other' && (
+              <input
+                type="text"
+                name="customAppName"
+                value={formData.customAppName}
+                onChange={handleChange}
+                className="input-field mt-2"
+                placeholder="Enter app name"
+                required
+                maxLength={100}
+              />
+            )}
           </div>
 
           <div>
@@ -105,6 +153,11 @@ export const UsageEntry = ({ onSuccess }) => {
               max="1440"
               step="0.01"
             />
+            {timePreview && (
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                You spent: <span className="font-medium">{timePreview}</span>
+              </p>
+            )}
           </div>
 
           <div>
